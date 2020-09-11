@@ -88,7 +88,7 @@ client.on('message', function (topic, message) {
 		var resp = cbor.decodeAllSync(res.payload)[0];
 		console.log(resp);
 		res.on('end', function() {
-		})
+	})
 	})
 
 	req.on('error', function(err) { console.log(err); });
@@ -152,6 +152,19 @@ function OnRep(dev_addr, dev_info, req_cbor) {
 				req_cbor.H = req_cbor.H * 100 / 65536;
 			break;
 		}
+		case "bh1750": {
+			if (typeof req_cbor.t !== 'undefined')
+				req_cbor.t = req_cbor.t * 0.25;
+			if (typeof req_cbor.V !== 'undefined')
+				req_cbor.V = req_cbor.V * 45 / 37033;
+			if (typeof req_cbor.v !== 'undefined')
+				req_cbor.v = req_cbor.v * 9 / 40960;
+
+			if (typeof req_cbor.L !== 'undefined')
+				req_cbor.L = req_cbor.L;
+			break;
+		}
+
 	}
 //	console.log("Publish", dev_info.name, JSON.stringify(req_cbor));
 	client.publish("/thread/in/" + dev_info.name, JSON.stringify(req_cbor));
@@ -215,7 +228,19 @@ function OnUp(dev_addr, dev_info, req_cbor) {
 				't': {'i': 30000, 'r': 2},
 			}
 		};
+	} else if (req_cbor.t == "bh1750") {
+		req_params = {
+			'a': my_address,
+			's': {
+				'L': {'i': 10000, 'r': 0},
+				'v': {'i': 10000, 'r': 10},
+//				'V': {'i': 10000, 'r': 10},
+				't': {'i': 30000, 'r': 2},
+			}
+		};
 	}
+
+
 	req_sub.on('error', function(err) { console.log(err); });
 	req_sub.write(cbor.encode(req_params));
 	req_sub.end();
