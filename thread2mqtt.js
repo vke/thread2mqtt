@@ -62,7 +62,7 @@ coap_server.on('request', function(req, res) {
 		case "/cmd": {
 			resp_json = OnCmd(dev_addr, dev_info, req_cbor);
 			break;
-	}
+		}
 	}
 	res.end()
 })
@@ -121,6 +121,15 @@ function OnRep(dev_addr, dev_info, req_cbor) {
 				req_cbor.v = req_cbor.v * 9 / 40960;
 			break;
 		}
+		case "router": {
+			if (typeof req_cbor.t !== 'undefined')
+				req_cbor.t = req_cbor.t * 0.25;
+			if (typeof req_cbor.V !== 'undefined')
+				req_cbor.V = req_cbor.V * 45 / 37033;
+			if (typeof req_cbor.v !== 'undefined')
+				req_cbor.v = req_cbor.v * 9 / 40960;
+			break;
+		}
 		case "bme280": {
 			if (typeof req_cbor.t !== 'undefined')
 				req_cbor.t = req_cbor.t * 0.25;
@@ -165,6 +174,13 @@ function OnRep(dev_addr, dev_info, req_cbor) {
 				req_cbor.H = req_cbor.H * 100 / 65536;
 			break;
 		}
+		case "buttonb": {
+			if (typeof req_cbor.t !== 'undefined')
+				req_cbor.t = req_cbor.t * 0.25;
+			if (typeof req_cbor.v !== 'undefined')
+				req_cbor.v = req_cbor.v * 9 / 40960;
+			break;
+		}
 	}
 //	console.log("Publish", dev_info.name, JSON.stringify(req_cbor));
 	client.publish("/thread/in/" + dev_info.name, JSON.stringify(req_cbor));
@@ -189,6 +205,15 @@ function OnUp(dev_addr, dev_info, req_cbor) {
 				'g': {'i': 10000, 'r': 0},
 				'b': {'i': 10000, 'r': 0},
 				'w': {'i': 10000, 'r': 0},
+				'v': {'i': 10000, 'r': 10},
+				'V': {'i': 10000, 'r': 10},
+				't': {'i': 30000, 'r': 2},
+			}
+		};
+	} else if (req_cbor.t == "router") {
+		req_params = {
+			'a': my_address,
+			's': {
 				'v': {'i': 10000, 'r': 10},
 //				'V': {'i': 10000, 'r': 10},
 				't': {'i': 30000, 'r': 2},
@@ -226,6 +251,14 @@ function OnUp(dev_addr, dev_info, req_cbor) {
 				'v': {'i': 10000, 'r': 10},
 //				'V': {'i': 10000, 'r': 10},
 				't': {'i': 30000, 'r': 2},
+			}
+		};
+	} else if (req_cbor.t == "buttonb") {
+		req_params = {
+			'a': my_address,
+			's': {
+				'v': {'i': 1800000, 'r': 16},
+				't': {'i': 1800000, 'r': 2},
 			}
 		};
 	}
