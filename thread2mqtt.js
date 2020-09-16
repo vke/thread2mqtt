@@ -1,8 +1,12 @@
-#!/usr/bin/env node
+#!/usr / bin / env node
+
+const convertors = require('./convertors')
+
+console.log(convertors);
 
 var wpantund_interface = "wpan0";
 
-process.on('SIGINT', function() {
+process.on('SIGINT', function () {
 	SaveDevicesDB();
 	console.log("Shutting down");
 	process.exit(0);
@@ -27,7 +31,7 @@ client.subscribe("/thread/out/#");
 
 var coap_server = coap.createServer({ type: 'udp6' });
 
-coap_server.on('request', function(req, res) {
+coap_server.on('request', function (req, res) {
 	var req_cbor = cbor.decodeAllSync(req.payload)[0];
 
 	if (req.url == '/up') {
@@ -62,7 +66,7 @@ coap_server.listen();
 
 client.on('message', function (topic, message) {
 	console.log(topic + ":" + message.toString());
- 	var pieces = topic.split("/");
+	var pieces = topic.split("/");
 	console.log(pieces);
 	var device = pieces[3];
 
@@ -84,77 +88,22 @@ client.on('message', function (topic, message) {
 
 	req.write(cbor.encode(JSON.parse(message.toString())));
 
-	req.on('response', function(res) {
+	req.on('response', function (res) {
 		var resp = cbor.decodeAllSync(res.payload)[0];
 		console.log(resp);
-		res.on('end', function() {
+		res.on('end', function () {
 		})
 	})
 
-	req.on('error', function(err) { console.log(err); });
+	req.on('error', function (err) { console.log(err); });
 
 	req.end()
 });
 
 
 function OnRep(dev_addr, dev_info, req_cbor) {
-	switch (dev_info.type) {
-		case "dimmer": {
-			if (typeof req_cbor.t !== 'undefined')
-				req_cbor.t = req_cbor.t * 0.25;
-			if (typeof req_cbor.V !== 'undefined')
-				req_cbor.V = req_cbor.V * 45 / 37033;
-			if (typeof req_cbor.v !== 'undefined')
-				req_cbor.v = req_cbor.v * 9 / 40960;
-			break;
-		}
-		case "bme280": {
-			if (typeof req_cbor.t !== 'undefined')
-				req_cbor.t = req_cbor.t * 0.25;
-			if (typeof req_cbor.V !== 'undefined')
-				req_cbor.V = req_cbor.V * 45 / 37033;
-			if (typeof req_cbor.v !== 'undefined')
-				req_cbor.v = req_cbor.v * 9 / 40960;
-
-			if (typeof req_cbor.P !== 'undefined')
-				req_cbor.P = req_cbor.P / 100;
-			if (typeof req_cbor.T !== 'undefined')
-				req_cbor.T = req_cbor.T / 100;
-			if (typeof req_cbor.H !== 'undefined')
-				req_cbor.H = req_cbor.H / 1024;
-			break;
-		}
-		case "bme280b": {
-			if (typeof req_cbor.t !== 'undefined')
-				req_cbor.t = req_cbor.t * 0.25;
-			if (typeof req_cbor.v !== 'undefined')
-				req_cbor.v = req_cbor.v * 9 / 40960;
-
-			if (typeof req_cbor.P !== 'undefined')
-				req_cbor.P = req_cbor.P / 100;
-			if (typeof req_cbor.T !== 'undefined')
-				req_cbor.T = req_cbor.T / 100;
-			if (typeof req_cbor.H !== 'undefined')
-				req_cbor.H = req_cbor.H / 1024;
-			break;
-		}
-		case "hdc1080": {
-			if (typeof req_cbor.t !== 'undefined')
-				req_cbor.t = req_cbor.t * 0.25;
-			if (typeof req_cbor.V !== 'undefined')
-				req_cbor.V = req_cbor.V * 45 / 37033;
-			if (typeof req_cbor.v !== 'undefined')
-				req_cbor.v = req_cbor.v * 9 / 40960;
-
-			if (typeof req_cbor.T !== 'undefined')
-				req_cbor.T = req_cbor.T * 165 / 65536 - 40;
-			if (typeof req_cbor.H !== 'undefined')
-				req_cbor.H = req_cbor.H * 100 / 65536;
-			break;
-		}
-	}
-//	console.log("Publish", dev_info.name, JSON.stringify(req_cbor));
-	client.publish("/thread/in/" + dev_info.name, JSON.stringify(req_cbor));
+	//	console.log("Publish", dev_info.name, JSON.stringify(req_cbor));
+	client.publish("/thread/in/" + dev_info.name, JSON.stringify(convertors[dev_info.type].convert(req_cbor)));
 }
 
 function OnUp(dev_addr, dev_info, req_cbor) {
@@ -166,58 +115,8 @@ function OnUp(dev_addr, dev_info, req_cbor) {
 	});
 
 	req_sub.setOption("Content-Format", "application/cbor");
-
-	var req_params;
-	if (req_cbor.t == "dimmer") {
-		req_params = {
-			'a': my_address,
-			's': {
-				'r': {'i': 10000, 'r': 0},
-				'g': {'i': 10000, 'r': 0},
-				'b': {'i': 10000, 'r': 0},
-				'w': {'i': 10000, 'r': 0},
-				'v': {'i': 10000, 'r': 10},
-//				'V': {'i': 10000, 'r': 10},
-				't': {'i': 30000, 'r': 2},
-			}
-		};
-	} else if (req_cbor.t == "bme280") {
-		req_params = {
-			'a': my_address,
-			's': {
-				'P': {'i': 10000, 'r': 0},
-				'T': {'i': 10000, 'r': 0},
-				'H': {'i': 10000, 'r': 0},
-				'v': {'i': 10000, 'r': 10},
-//				'V': {'i': 10000, 'r': 10},
-				't': {'i': 30000, 'r': 2},
-			}
-		};
-	} else if (req_cbor.t == "bme280b") {
-		req_params = {
-			'a': my_address,
-			's': {
-				'P': {'i': 120000, 'r': 0},
-				'T': {'i': 120000, 'r': 0},
-				'H': {'i': 120000, 'r': 0},
-				'v': {'i': 120000, 'r': 10},
-				't': {'i': 120000, 'r': 2},
-			}
-		};
-	} else if (req_cbor.t == "hdc1080") {
-		req_params = {
-			'a': my_address,
-			's': {
-				'T': {'i': 10000, 'r': 0},
-				'H': {'i': 10000, 'r': 0},
-				'v': {'i': 10000, 'r': 10},
-//				'V': {'i': 10000, 'r': 10},
-				't': {'i': 30000, 'r': 2},
-			}
-		};
-	}
-	req_sub.on('error', function(err) { console.log(err); });
-	req_sub.write(cbor.encode(req_params));
+	req_sub.on('error', function (err) { console.log(err); });
+	req_sub.write(cbor.encode(convertors[req_cbor.t].subscribe(my_address)));
 	req_sub.end();
 }
 
@@ -232,7 +131,7 @@ function DevAddrByDevName(dev_name) {
 function BinaryAddressToString6(addr) {
 	var str = "";
 	var delCtr = 0;
-	addr.forEach(function(byte) {
+	addr.forEach(function (byte) {
 		if (delCtr > 0 && delCtr % 2 == 0)
 			str += ":";
 		delCtr++;
@@ -260,7 +159,7 @@ function GetNewDevName(type) {
 
 function UpdateDevicesDB(req, req_cbor) {
 	var ml_eid;
-	
+
 	if (typeof req_cbor.a !== 'undefined')
 		ml_eid = BinaryAddressToString6(req_cbor.a);
 	else
