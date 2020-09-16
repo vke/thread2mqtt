@@ -48,7 +48,7 @@ coap_server.on('request', function(req, res) {
 	var dev_info = ipv6_dev[req.rsinfo.address];
 	var resp_json = {};
 
-	console.log(dev_info.name, req.url, req_cbor);
+	console.log(new Date().toISOString().replace(/T/, ' ').replace(/\..+/, ''), dev_info.name, req.url, req_cbor);
 
 	switch (req.url) {
 		case "/rep": {
