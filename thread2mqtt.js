@@ -59,6 +59,10 @@ coap_server.on('request', function(req, res) {
 			resp_json = OnUp(dev_addr, dev_info, req_cbor);
 			break;
 		}
+		case "/cmd": {
+			resp_json = OnCmd(dev_addr, dev_info, req_cbor);
+			break;
+	}
 	}
 	res.end()
 })
@@ -101,6 +105,10 @@ client.on('message', function (topic, message) {
 	req.end()
 });
 
+function OnCmd(dev_addr, dev_info, req_cbor) {
+	console.log("Publish cmd", dev_info.name, JSON.stringify(req_cbor));
+	//client.publish("/thread/in/" + dev_info.name, JSON.stringify(req_cbor));
+}
 
 function OnRep(dev_addr, dev_info, req_cbor) {
 	switch (dev_info.type) {
