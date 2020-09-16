@@ -17,6 +17,11 @@ var ip6addr = require('ip6addr');
 
 var my_address = GetWPANIPv6Address(wpantund_interface);
 
+var coapTiming = {
+	maxRetransmit: 1,
+};
+coap.updateTiming(coapTiming);
+
 var ipv6_dev = {};
 if (fs.existsSync('devices.json'))
 	ipv6_dev = JSON.parse(fs.readFileSync('devices.json'));
