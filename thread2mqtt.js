@@ -1,9 +1,6 @@
 #!/usr / bin / env node
 
-const convertors = require('./convertors')
-
-console.log(convertors);
-
+const convectors = require('./convectors')
 var wpantund_interface = "wpan0";
 
 process.on('SIGINT', function () {
@@ -103,7 +100,7 @@ client.on('message', function (topic, message) {
 
 function OnRep(dev_addr, dev_info, req_cbor) {
 	//	console.log("Publish", dev_info.name, JSON.stringify(req_cbor));
-	client.publish("/thread/in/" + dev_info.name, JSON.stringify(convertors[dev_info.type].convert(req_cbor)));
+	client.publish("/thread/in/" + dev_info.name, JSON.stringify(convectors[dev_info.type].convert(req_cbor)));
 }
 
 function OnUp(dev_addr, dev_info, req_cbor) {
@@ -116,7 +113,7 @@ function OnUp(dev_addr, dev_info, req_cbor) {
 
 	req_sub.setOption("Content-Format", "application/cbor");
 	req_sub.on('error', function (err) { console.log(err); });
-	req_sub.write(cbor.encode(convertors[req_cbor.t].subscribe(my_address)));
+	req_sub.write(cbor.encode(convectors[req_cbor.t].subscribe(my_address)));
 	req_sub.end();
 }
 
