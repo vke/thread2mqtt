@@ -30,7 +30,7 @@ var client = mqtt.connect();
 
 client.subscribe("/thread/out/#");
 
-var coap_server = coap.createServer({ type: 'udp6' });
+var coap_server = coap.createServer({ type: 'udp6', sendAcksForNonConfirmablePackets: false });
 
 coap_server.on('request', function(req, res) {
 	var req_cbor = cbor.decodeAllSync(req.payload)[0];
