@@ -288,6 +288,7 @@ function UpdateDevicesDB(req, req_cbor) {
 		name: null,
 		type: null,
 		ver: null,
+		last_up: +new Date(),
 	};
 
 	if (typeof req_cbor.t !== 'undefined')
