@@ -48,7 +48,7 @@ coap_server.on('request', function(req, res) {
 	var dev_info = ipv6_dev[req.rsinfo.address];
 	var resp_json = {};
 
-	console.log(new Date().toISOString().replace(/T/, ' ').replace(/\..+/, ''), dev_info.name, req.url, req_cbor);
+//	console.log(new Date().toISOString().replace(/T/, ' ').replace(/\..+/, ''), dev_info.name, req.url, req_cbor);
 
 	switch (req.url) {
 		case "/rep": {
@@ -70,9 +70,9 @@ coap_server.on('request', function(req, res) {
 coap_server.listen();
 
 client.on('message', function (topic, message) {
-	console.log(topic + ":" + message.toString());
- 	var pieces = topic.split("/");
-	console.log(pieces);
+//	console.log(topic + ":" + message.toString());
+	var pieces = topic.split("/");
+//	console.log(pieces);
 	var device = pieces[3];
 
 	var dev_addr = DevAddrByDevName(device);
@@ -95,7 +95,7 @@ client.on('message', function (topic, message) {
 
 	req.on('response', function(res) {
 		var resp = cbor.decodeAllSync(res.payload)[0];
-		console.log(resp);
+//		console.log(resp);
 		res.on('end', function() {
 		})
 	})
@@ -106,7 +106,7 @@ client.on('message', function (topic, message) {
 });
 
 function OnCmd(dev_addr, dev_info, req_cbor) {
-	console.log("Publish cmd", dev_info.name, JSON.stringify(req_cbor));
+//	console.log("Publish cmd", dev_info.name, JSON.stringify(req_cbor));
 	//client.publish("/thread/in/" + dev_info.name, JSON.stringify(req_cbor));
 }
 
