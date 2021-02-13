@@ -96,7 +96,7 @@ client.on('message', function (topic, message) {
 	req.on('response', function (res) {
 		var resp = cbor.decodeAllSync(res.payload)[0];
 //		console.log(resp);
-		res.on('end', function() {
+		res.on('end', function () {
 		})
 	})
 
@@ -107,12 +107,11 @@ client.on('message', function (topic, message) {
 
 function OnCmd(dev_addr, dev_info, req_cbor) {
 //	console.log("Publish cmd", dev_info.name, JSON.stringify(req_cbor));
-	//client.publish("/thread/in/" + dev_info.name, JSON.stringify(req_cbor));
+//	client.publish("/thread/in/" + dev_info.name, JSON.stringify(req_cbor));
 }
 
 function OnRep(dev_addr, dev_info, req_cbor) {
-
-	//	console.log("Publish", dev_info.name, JSON.stringify(req_cbor));
+//	console.log("Publish", dev_info.name, JSON.stringify(req_cbor));
 	client.publish("/thread/in/" + dev_info.name, JSON.stringify(firmware_types[dev_info.type].convert(req_cbor)));
 }
 
