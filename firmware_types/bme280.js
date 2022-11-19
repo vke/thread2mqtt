@@ -1,13 +1,14 @@
 module.exports = {
 	"convert": (req_cbor) => {
-		let obj = {}
-		if ("t" in req_cbor) obj.t = req_cbor.t * 0.25;
-		if ("V" in req_cbor) obj.V = req_cbor.V * 45 / 37033;
-		if ("v" in req_cbor) obj.v = req_cbor.v * 9 / 40960;
-		if ("P" in req_cbor) obj.P = req_cbor.P / 100;
-		if ("T" in req_cbor) obj.T = req_cbor.T / 100;
-		if ("H" in req_cbor) obj.H = req_cbor.H / 1024;
-		return obj
+		const { t, V, v, P, T, H } = req_cbor;
+		return {
+			...t && { t: t * 0.25 },
+			...V && { V: V * 45 / 37033 },
+			...v && { v: v * 9 / 40960 },
+			...P && { P: P / 100 },
+			...T && { T: T / 100 },
+			...H && { H: H / 1024 },
+		}
 	},
 	"subscribe": (my_address) => {
 		return {
