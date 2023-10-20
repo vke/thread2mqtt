@@ -1,6 +1,12 @@
 #!/usr/bin/env node
+
+'use strict';
+
+const wpantund_interface = "wpan0";
+const mesh_local_prefix = "fdde:ad00:beef";
+const devices_db_filename = "devices.json";
+
 const firmware_types = require('./firmware_types')
-var wpantund_interface = "wpan0";
 
 process.on('SIGINT', function () {
 	SaveDevicesDB();
@@ -10,45 +16,48 @@ process.on('SIGINT', function () {
 
 const os = require('os');
 const fs = require('fs');
-var mqtt = require('mqtt');
-var coap = require('coap');
-var cbor = require('cbor');
-var ip6addr = require('ip6addr');
+const mqtt = require('mqtt');
+const coap = require('coap');
+const cbor = require('cbor');
+const ip6addr = require('ip6addr');
 
-var my_address = GetWPANIPv6Address(wpantund_interface);
+let my_address = GetWPANIPv6Address(wpantund_interface);
+if (my_address == null) {
+	console.log("Unknown server's IPv6 address");
+	process.exit(1);
+}
+console.log("My own address: ", BinaryAddressToString6(my_address));
 
-var coapTiming = {
+coap.updateTiming({
 	maxRetransmit: 1,
-};
-coap.updateTiming(coapTiming);
+});
 
-var ipv6_dev = {};
-if (fs.existsSync('devices.json'))
-	ipv6_dev = JSON.parse(fs.readFileSync('devices.json'));
+let known_devices = LoadDevicesDB();
 
-var client = mqtt.connect();
+const client = mqtt.connect();
 
 client.subscribe("/thread/out/#");
 
-var coap_server = coap.createServer({ type: 'udp6', sendAcksForNonConfirmablePackets: false });
+const coap_server = coap.createServer({ type: 'udp6', sendAcksForNonConfirmablePackets: false });
 
 coap_server.on('request', function (req, res) {
-	var req_cbor = cbor.decodeAllSync(req.payload)[0];
+	const req_cbor = cbor.decodeAllSync(req.payload)[0];
+
+	// expand ipv6 address
+	const dev_addr = BinaryAddressToString6(ip6addr.parse(req.rsinfo.address).toBuffer());
 
 	if (req.url == '/up') {
-		UpdateDevicesDB(req, req_cbor);
+		if (!UpdateDevicesDB(dev_addr, req, req_cbor))
+			return;
 	}
 
-	if (typeof ipv6_dev[req.rsinfo.address] == 'undefined') {
+	if (!(dev_addr in known_devices)) {
 		console.log("Request from unknown device: " + req.rsinfo.address);
 		return;
 	}
 
-	var dev_addr = req.rsinfo.address;
-	var dev_info = ipv6_dev[req.rsinfo.address];
-	var resp_json = {};
-
-//	console.log(new Date().toISOString().replace(/T/, ' ').replace(/\..+/, ''), dev_info.name, req.url, req_cbor);
+	const dev_info = known_devices[dev_addr];
+	let resp_json = {};
 
 	switch (req.url) {
 		case "/rep": {
@@ -70,19 +79,17 @@ coap_server.on('request', function (req, res) {
 coap_server.listen();
 
 client.on('message', function (topic, message) {
-//	console.log(topic + ":" + message.toString());
-	var pieces = topic.split("/");
-//	console.log(pieces);
-	var device = pieces[3];
+	const pieces = topic.split("/");
+	const device = pieces[3];
 
-	var dev_addr = DevAddrByDevName(device);
+	const dev_addr = DevAddrByDevName(device);
 
 	if (dev_addr == null) {
 		console.log("Unknown device: " + device);
 		return;
 	}
 
-	var req = coap.request({
+	let req = coap.request({
 		hostname: dev_addr,
 		pathname: 'set',
 		method: 'PUT',
@@ -95,7 +102,6 @@ client.on('message', function (topic, message) {
 
 	req.on('response', function (res) {
 		var resp = cbor.decodeAllSync(res.payload)[0];
-//		console.log(resp);
 		res.on('end', function () {
 		})
 	})
@@ -106,8 +112,8 @@ client.on('message', function (topic, message) {
 });
 
 function OnCmd(dev_addr, dev_info, req_cbor) {
-//	console.log("Publish cmd", dev_info.name, JSON.stringify(req_cbor));
-//	client.publish("/thread/in/" + dev_info.name, JSON.stringify(req_cbor));
+	console.log(new Date().toISOString().replace(/T/, ' ').replace(/Z/, '') + ";Publish cmd", dev_info.name, JSON.stringify(req_cbor));
+	client.publish("/thread/in/" + dev_info.name, JSON.stringify(req_cbor));
 }
 
 function OnRep(dev_addr, dev_info, req_cbor) {
@@ -116,8 +122,8 @@ function OnRep(dev_addr, dev_info, req_cbor) {
 }
 
 function OnUp(dev_addr, dev_info, req_cbor) {
-	var req_sub = coap.request({
-		hostname: dev_addr,
+	let req_sub = coap.request({
+		hostname: dev_addr, // FIXME: ml_eid or dev_addr?
 		pathname: 'sub',
 		method: 'PUT',
 		confirmable: true,
@@ -131,84 +137,83 @@ function OnUp(dev_addr, dev_info, req_cbor) {
 }
 
 function DevAddrByDevName(dev_name) {
-	for (var key in ipv6_dev) {
-		if (ipv6_dev[key].name == dev_name)
+	for (let key in known_devices) {
+		if (known_devices[key].name == dev_name)
 			return key
 	}
 	return null;
 }
 
 function BinaryAddressToString6(addr) {
-	var str = "";
-	var delCtr = 0;
-	addr.forEach(function (byte) {
-		if (delCtr > 0 && delCtr % 2 == 0)
-			str += ":";
-		delCtr++;
-		str += ('0' + (byte & 0xFF).toString(16)).slice(-2);
-	});
-	return str;
+	return addr.toString('hex').match(/.{1,4}/g).join(':');
+}
+
+function LoadDevicesDB() {
+	let known_devices = {};
+	if (fs.existsSync(devices_db_filename))
+		known_devices = JSON.parse(fs.readFileSync(devices_db_filename));
+	return known_devices;
 }
 
 function SaveDevicesDB() {
 	console.log("Saving devices database");
-	if (fs.existsSync('devices.json'))
-		fs.renameSync("devices.json", "devices.json.bcp")
-	fs.writeFileSync("devices.json", JSON.stringify(ipv6_dev, null, '\t'));
+	if (fs.existsSync(devices_db_filename))
+		fs.renameSync(devices_db_filename, `${devices_db_filename}.bcp`);
+	fs.writeFileSync(devices_db_filename, JSON.stringify(known_devices, null, '\t'));
 }
 
 function GetNewDevName(type) {
-	for (var i = 1; i < 100; i++) {
-		var name = type + '_' + ('0' + i.toString()).slice(-2);
-		var addr = DevAddrByDevName(name);
+	for (let i = 1; i < 100; i++) {
+		let name = type + '_' + ('0' + i.toString()).slice(-2);
+		const addr = DevAddrByDevName(name);
 		if (addr == null)
 			return name;
 	}
 	return null;
 }
 
-function UpdateDevicesDB(req, req_cbor) {
-	var ml_eid;
-
-	if (typeof req_cbor.a !== 'undefined')
-		ml_eid = BinaryAddressToString6(req_cbor.a);
-	else
+function UpdateDevicesDB(dev_addr, req, req_cbor) {
+	if (!('a' in req_cbor)) {
+		console.log("No address field in /up request", dev_addr, req, req_cbor);
 		return false;
+	}
 
-	var dev_addr = req.rsinfo.address;
+	if (!('t' in req_cbor)) {
+		console.log("No type field in /up request", dev_addr, req, req_cbor);
+		return false;
+	}
 
-	var dev = {
-		mac_addr: null,
-		ext_addr: null,
+	if (!(req_cbor.t in firmware_types)) {
+		console.log("Unknown firmware type", dev_addr, req, req_cbor);
+		return false;
+	}
+
+	let ml_eid = BinaryAddressToString6(req_cbor.a);
+	if (dev_addr != ml_eid) {
+		console.log("Different ml-eid and device addresses", ml_eid, dev_addr);
+		return false;
+	}
+
+	let dev = {
+		mac_addr: ('m' in req_cbor) ? req_cbor.m.toString('hex') : null,
+		ext_addr: ('e' in req_cbor) ? req_cbor.e.toString('hex') : null,
 		ml_eid: ml_eid,
 		name: null,
-		type: null,
-		ver: null,
+		type: req_cbor.t,
+		ver: req_cbor.v ?? null,
 		last_up: +new Date(),
 	};
 
-	if (typeof req_cbor.t !== 'undefined')
-		dev.type = req_cbor.t;
-
-	if (typeof req_cbor.v !== 'undefined')
-		dev.ver = req_cbor.v;
-
-	if (typeof req_cbor.m !== 'undefined')
-		dev.mac_addr = req_cbor.m.toString('hex');
-
-	if (typeof req_cbor.e !== 'undefined')
-		dev.ext_addr = req_cbor.e.toString('hex');
-
-	if (typeof ipv6_dev[dev_addr] == 'undefined') {
+	if (ml_eid in known_devices) {
+		dev.name = known_devices[ml_eid].name;
+		known_devices[ml_eid] = dev;
+		console.log("Update device: ", dev);
+	} else {
 		dev.name = GetNewDevName(dev.type);
 		if (dev.name == null)
 			return false;
-		ipv6_dev[dev_addr] = dev;
+		known_devices[ml_eid] = dev;
 		console.log("New device: ", dev);
-	} else {
-		dev.name = ipv6_dev[dev_addr].name;
-		ipv6_dev[dev_addr] = dev;
-		console.log("Update device: ", dev);
 	}
 
 	SaveDevicesDB();
@@ -217,15 +222,15 @@ function UpdateDevicesDB(req, req_cbor) {
 }
 
 function GetWPANIPv6Address(if_name) {
-	var interfaces = os.networkInterfaces();
-	if (typeof interfaces[if_name] === 'undefined')
+	const interfaces = os.networkInterfaces();
+	if (!(if_name in interfaces))
 		return null;
 
-	var iface = interfaces[if_name];
+	const iface = interfaces[if_name];
 
 	for (var i = 0; i < iface.length; i++) {
-		var addr = iface[i];
-		if (addr.address.startsWith('fd'))
+		const addr = iface[i];
+		if (addr.address.startsWith(mesh_local_prefix) && addr.address.indexOf('::ff:fe00:') == -1)
 			return ip6addr.parse(addr.address).toBuffer();
 	}
 
